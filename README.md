@@ -46,8 +46,7 @@ alert(
  !"#$%&'()*+,-./0123456789:;<=>?
 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
 `abcdefghijklmnopqrstuvwxyz{|}~
-
-UTF-8: Русский Ελληνικά 中文 €°©§№
+UTF-8: Русский Ελληνικά 中文 ½°©§№
 ]], "$PATH %PATH%", "cyan/navy")
 ```
 ---
@@ -74,7 +73,8 @@ Currently 17 terminal emulators are supported:
 
 and "zenity" (it is not a terminal emulator, nevertheless it can display a message and wait until user pressed OK button).
 
-I hope that all default terminal emulators from all Linux desktop environments are listed here, so `alert()` should work on any desktop Linux.
+I hope that all default terminal emulators from all Linux desktop environments are listed here,  
+so `alert()` should work on any desktop Linux.
 
 ---
 ### OS-specific behavior
@@ -107,7 +107,7 @@ The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
 ##### A note for CYGWIN users:
 * When Cygwin/X-based terminal emulator is used as alert box:
   * UTF-8 is fully supported
-  * Sometimes alert box may be created as NOT frontmost window.
+  * Sometimes alert box is created as NOT frontmost window and/or not focused.
 * When CMD.EXE is used as alert box:
   * UTF-8 support is limited to symbols from current Windows locale:
     * characters from Windows OEM codepage (OEM=cp850 for Latin-1 locale) are displayed correctly,
@@ -221,8 +221,8 @@ alert_3(("Test,"):rep(20))
 How to create two functions to use different terminal emulators in Linux:  
 (of course, both terminal emulators should be installed on your system)
 ```lua
-local alert_xterm = require"alert"(nil, {terminal = "xterm"})
-local alert_urxvt = alert_xterm   (nil, {terminal = "urxvt"})
+local alert_xterm = require("alert")(nil, {terminal = "xterm"})
+local alert_urxvt = alert_xterm     (nil, {terminal = "urxvt"})
 alert_xterm("This is xterm window")
 alert_urxvt("This is urxvt window")
 ```
@@ -241,7 +241,7 @@ alert_blue ("This window is yellow", nil, "/yellow")
 How to create function that accepts Windows ANSI strings instead of UTF-8 strings (only for Windows):
 ```lua
 local alert = require("alert")(nil, {use_windows_native_encoding = true})
-alert("This is win1252 string.\nEuro sign: \128")
+alert('This is win1252 string.\n"One half" symbol: \189')
 ```
 ---
 ### OS versions
@@ -258,11 +258,11 @@ alert("This is win1252 string.\nEuro sign: \128")
 
 ---
 ### Installation
-   Just copy "alert.lua" to folder where Lua modules are stored on your machine.
+   Just copy `alert.lua` to folder where Lua modules are stored on your machine.
 
 ---
 ### Known problems:
-* Symbol width on Windows with Multi-Byte-Character-Set locales (such as CJK).  
+1. Problem with symbol width on Windows with Multi-Byte-Character-Set locales (such as CJK).  
    Currently, `alert()` is unable to distinguish between full-width and half-width characters in CMD.EXE console output.  
    So, "geometry beautifier" may give wrong text layout and/or incorrect window dimensions.  
    Bugreports with screenshots are welcome.  
@@ -271,7 +271,7 @@ alert("This is win1252 string.\nEuro sign: \128")
 
 ---
 ### Feedback
-Please send any ideas, improvements and contructive criticism to egor.skriptunoff(at)gmail.com
+Please send any ideas, improvements and constructive criticism to egor.skriptunoff(at)gmail.com
 
 Feedback is especially desirable from:
 * People that are using *nix distributions which are not in widespread use;
@@ -279,9 +279,7 @@ Feedback is especially desirable from:
 
 ---
 ### FAQ
-* **Q:**  
- Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
-* **A:**  
- I want to keep things simple.  
- This module is intended to ALWAYS keep backward compatibility: if your program works with "alert" version N, it will also work with "alert" version N+1.  
+* **Q:** Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
+* **A:** I want to keep things simple.  
+ This module is intended to ALWAYS keep backward compatibility: if your program works with `alert` version **N**, it will also work with `alert` version **N+1**.  
  So, one level of numbers is enough to describe dependency.
