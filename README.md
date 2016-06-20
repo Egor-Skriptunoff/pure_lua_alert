@@ -82,7 +82,7 @@ I hope that all default terminal emulators from all Linux desktop environments a
    Windows Command Prompt (CMD.EXE) is used to create a console window and display a message inside it.
 
 * **Linux:**  
-   All terminal emulators listed in the table "terminals" are checked for being installed in order of their priority.  
+   All terminal emulators listed in the table `terminals` are checked for being installed in order of their priority.  
    The first one which was successfully detected is used as alert box.  
    Otherwise (if auto-detection failed) an error is raised.
 
@@ -109,7 +109,7 @@ The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
   * UTF-8 is fully supported
   * Sometimes alert box may be created as NOT frontmost window.
 * When CMD.EXE is used as alert box:
-  * Limited UTF-8 support:
+  * UTF-8 support is limited to symbols from current Windows locale:
     * characters from Windows OEM codepage (OEM=cp850 for Latin-1 locale) are displayed correctly,
     * all other characters are replaced with `?`
 
@@ -122,7 +122,7 @@ The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
     * Example #2: Windows locale is "Chinese traditional" (ANSI=OEM=cp950)  
       Chinese and Greek letters are displayed correctly, Russian letters are replaced with `?`.
 * To work with Windows ANSI strings instead of UTF-8 strings,  
-  set `use_windows_native_encoding` configurable parameter  
+  set `use_windows_native_encoding` configurable parameter to `true`  
   (see "Working with configurations. Example #4" below)
 
 ---
@@ -142,14 +142,14 @@ All arguments are optional.
 If some argument is omitted or set to nil, then its default value is used  
 (see "Configurations" section on how to set default values).
 * **text:**  
-   Text to be displayed in the terminal window (empty string by default)
+   Text to be displayed (empty string by default)
 * **title:**  
    Window title ("Press any key" by default)
 * **colors:**  
-   Forground and background color names (keys from table `all_colors`) separated by a slash, `"black/silver"` by default.  
-   Examples: `"dark blue/lime"`, `"magenta/black"`,...  
+   Forground and background color names, separated by a slash, `"black/silver"` by default.  
    Omitting one of the components (`"cyan/"`, `"/green"`,...) means "I don't care omitted color", white or black color will be used in place of omitted component to maximize the contrast.  
    Omitting both components `"/"` means "use your terminal's default colors".  
+   Color names are actually the keys in table `all_colors`, examples: `"dk-blue", "lime"`, `"magenta", "white"`,...  
    Color names are case-insensitive, light=lt, dark=dk, gray=grey, non-alphanumeric chars are ignored:  
    `"Light Red"` = `"lightred"` = `"LtRed"` = `"light-red"` = `"Lt.Red"`  = `"light red"`  = `"red"`
 * **wait:**  
@@ -162,10 +162,10 @@ If some argument is omitted or set to nil, then its default value is used
 
 ---
 ### Configurations
-Configuration is a set of parameters which can be modified in order to control the behavior of `alert()`:  
+Configuration is a set of parameters which can be modified in order to control the behavior of `alert()`.  
 Configurable parameters are:
 * default values for omitted `alert()` arguments,
-* parameters concerning to terminal window geometry,
+* parameters concerning to window geometry and text padding,
 * OS-specific behavior parameters.
 
 See `initial_config` table to view full list of configurable parameters.
@@ -180,7 +180,7 @@ Configurable parameters that had not been overridden are inherited from the curr
 ##### Working with configurations. Example #1:
 ```lua
 -- Get initial function instance (it will use initial configuration)
-local alert_1 = require"alert"
+local alert_1 = require("alert")
 
 -- Create alert box using alert_1()
 alert_1(("Test,"):rep(20))
@@ -218,7 +218,7 @@ alert_3(("Test,"):rep(20))
 -- Window created: title = "Message #1", colors = "magenta/green", using xterm, geometry up to 128x25
 ```
 ##### Working with configurations. Example #2:
-How to create 2 functions to use different terminal emulators in Linux:  
+How to create two functions to use different terminal emulators in Linux:  
 (of course, both terminal emulators should be installed on your system)
 ```lua
 local alert_xterm = require"alert"(nil, {terminal = "xterm"})
@@ -227,7 +227,7 @@ alert_xterm("This is xterm window")
 alert_urxvt("This is urxvt window")
 ```
 ##### Working with configurations. Example #3:
-How to create 3 functions to use different default colors:
+How to create three functions to use different default colors:
 ```lua
 local alert_red   = require("alert")(nil, {default_arg_colors = "/dark red"}  )
 local alert_green = alert_red       (nil, {default_arg_colors = "/dark green"})
@@ -245,27 +245,30 @@ alert("This is win1252 string.\nEuro sign: \128")
 ```
 ---
 ### OS versions
-* Windows:
+* **Windows:**  
  XP and higher versions are supported
-* MacOSX:
+* **MacOSX:**  
  tested on Mountain Lion and higher versions
-* Cygwin:
+* **Cygwin:**  
  tested on 2.5.1
-* Linux:
+* **Linux:**  
  should work on all desktop Linux distributions
-* Other *nices:
+* **Other *nices:**  
  not tested, but I hope it should work (bugreports are welcome)
+
 ---
 ### Installation
    Just copy "alert.lua" to folder where Lua modules are stored on your machine.
+
 ---
 ### Known problems:
-* Symbol width on Windows with Multi-Byte-Character-Set locales (such as CJK).
-   Currently, `alert()` is unable to distinguish between full-width and half-width characters in CMD.EXE console output.
-   So, "geometry beautifier" may give wrong text layout and/or incorrect window dimensions.
-   Bugreports with screenshots are welcome.
-   Is there exist a rule (applicable to all existing MBCS Windows encodings) to determine width of symbol on CMD.EXE screen?
+* Symbol width on Windows with Multi-Byte-Character-Set locales (such as CJK).  
+   Currently, `alert()` is unable to distinguish between full-width and half-width characters in CMD.EXE console output.  
+   So, "geometry beautifier" may give wrong text layout and/or incorrect window dimensions.  
+   Bugreports with screenshots are welcome.  
+   Is there exist a rule (applicable to all existing MBCS Windows encodings) to determine width of symbol on CMD.EXE screen?  
    Can someone suggest a way to solve this problem?
+
 ---
 ### Feedback
 Please send any ideas, improvements and contructive criticism to egor.skriptunoff(at)gmail.com
@@ -276,9 +279,9 @@ Feedback is especially desirable from:
 
 ---
 ### FAQ
-**Q:**  
-> Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
-**A:**  
-> I want to keep things simple.  
-> This module is intended to ALWAYS keep backward compatibility: if your program works with "alert" version N, it will also work with "alert" version N+1.  
-> So, one level of numbers is enough to describe dependency.
+* **Q:**  
+ Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
+* **A:**  
+ I want to keep things simple.  
+ This module is intended to ALWAYS keep backward compatibility: if your program works with "alert" version N, it will also work with "alert" version N+1.  
+ So, one level of numbers is enough to describe dependency.
