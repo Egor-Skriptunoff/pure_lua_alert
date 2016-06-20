@@ -13,7 +13,7 @@ It works on Linux, Mac OS X, Windows and Cygwin.
 * any of 17 supported terminal emulators (if found to be installed on your system) is used on Linux.
 
 The alert dialog box is created as frontmost window; but, unlike standard dialog boxes, it is NOT modal to other windows of host application.
-
+---
 ### Usage examples
 ```lua
 --The module does not create global variables, user should catch a function returned by require().
@@ -46,12 +46,10 @@ alert(
 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
 `abcdefghijklmnopqrstuvwxyz{|}~
 
-UTF-8: Русский Ελληνικά 中文 €°©§№]],
-   "$PATH %PATH%",
-   "cyan/navy"
-)
+UTF-8: Русский Ελληνικά 中文 €°©§№
+]], "$PATH %PATH%", "cyan/navy")
 ```
-
+---
 ### List of supported terminal emulators
 `alert()` on Linux works only with terminal emulators it is aware of (see table `terminals`).  
 Currently 17 terminal emulators are supported:
@@ -76,29 +74,29 @@ Currently 17 terminal emulators are supported:
 and "zenity" (it is not a terminal emulator, nevertheless it can display a message and wait until user pressed OK button).
 
 I hope that all default terminal emulators from all Linux desktop environments are listed here, so `alert()` should work on any desktop Linux.
-
+---
 ### OS-specific behavior
-##### Windows:
+* **Windows:**
    Windows Command Prompt (CMD.EXE) is used to create a console window and display a message inside it.
 
-##### Linux:
+* **Linux:**
    All terminal emulators listed in the table "terminals" are checked for being installed in order of their priority.  
    The first one which was successfully detected is used to display a message.  
    Otherwise (if auto-detection failed) an error is raised.
 
-##### CYGWIN:
-   *if* Cygwin/X is running and auto-detection was successful  
-   *then* the terminal emulator which has been detected is used, usually it is "rxvt-unicode"  
-   *otherwise* CMD.EXE is used
+* **CYGWIN:**
+   **if** Cygwin/X is running and auto-detection was successful  
+   **then** the terminal emulator which has been detected is used, usually it is "rxvt-unicode"  
+   **else** CMD.EXE is used
 
-##### Mac OS X:
-   *if* XQuartz is running and auto-detection was successful  
-   *then* the terminal emulator which has been detected is used  
-   *otherwise* Terminal.app is used
+* **Mac OS X:**
+   **if** XQuartz is running and auto-detection was successful  
+   **then** the terminal emulator which has been detected is used  
+   **else** Terminal.app is used
 
-##### other OS:
+* **other OS:**
    all other systems use Linux scenario
-
+---
 ### Text Encoding
 Arguments `text` and `title` are expected to be UTF-8 strings on all platforms, including Windows.  
 The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
@@ -108,19 +106,21 @@ The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
   * UTF-8 is fully supported
   * Sometimes alert dialog box may be created as NOT frontmost window.
 * When CMD.EXE is used to display user messages:
-  * Limited UTF-8 support:  
-      characters from Windows OEM codepage (OEM=cp850 for Latin-1 locale) are displayed correctly, all other characters are replaced with `?`
+  * Limited UTF-8 support:
+    * characters from Windows OEM codepage (OEM=cp850 for Latin-1 locale) are displayed correctly,
+    * all other characters are replaced with `?`
 
 ##### A note for WINDOWS users:
 * Limited UTF-8 support:
-  * characters which are present in both Windows ANSI and OEM codepages simultaneously are displayed correctly,  
-    all other characters are replaced with `?`
+  * characters which are present in both Windows ANSI and OEM codepages simultaneously are displayed correctly,
+  * all other characters are replaced with `?`
     * Example #1: Windows locale is "Latin-1" (ANSI=win1252, OEM=cp850)  
-        characters from intersection of win1252 and cp850 are displayed correctly.
+      characters from intersection of win1252 and cp850 are displayed correctly.
     * Example #2: Windows locale is "Chinese traditional" (ANSI=OEM=cp950)  
-        Chinese and Greek letters are displayed correctly, Russian letters are replaced with `?`.
-* To work with Windows ANSI strings instead of UTF-8 strings, set `use_windows_native_encoding` configurable parameter (see "Working with configurations. Example #4" below)
-
+      Chinese and Greek letters are displayed correctly, Russian letters are replaced with `?`.
+* To work with Windows ANSI strings instead of UTF-8 strings, set `use_windows_native_encoding` configurable parameter  
+  (see "Working with configurations. Example #4" below)
+---
 ### Function signature
 ```lua
    function alert (text, title, colors, wait, admit_linebreak_inside_of_a_word)
@@ -130,9 +130,10 @@ or
    function alert (arg_table)
 ```
 where `arg_table` is a table containing arguments in fields with corresponding names.
-
+---
 ### Arguments
-All arguments are optional. If some argument is omitted or set to nil, then its default value is used (see "Configurations" section on how to set default values).
+All arguments are optional.  
+If some argument is omitted or set to nil, then its default value is used (see "Configurations" section on how to set default values).
 ##### text
    Text to be displayed in the terminal window (empty string by default)
 ##### title
@@ -142,16 +143,16 @@ All arguments are optional. If some argument is omitted or set to nil, then its 
    Examples: `"dark blue/lime"`, `"magenta/black"`,...  
    Omitting one of the components (`"cyan/"`, `"/green"`,...) means "I don't care omitted color", white or black color will be used in place of omitted component to maximize the contrast.  
    Omitting both components `"/"` means "use your terminal's default colors".  
-   Color names are case-insensitive, light==lt, dark==dk, gray==grey, non-alphanumeric chars are ignored:  
+   Color names are case-insensitive, light=lt, dark=dk, gray=grey, non-alphanumeric chars are ignored:  
    `"Light Red"` = `"lightred"` = `"LtRed"` = `"light-red"` = `"Lt.Red"` (they are the same color as `"light red"`, synonym to `"red"`)
 ##### wait
-   *true:* program execution is blocked until user closed terminal window  
-   *false:* alert() returns immediately without waiting for user to press a key
+   **true:** Lua script execution is blocked until user closed terminal window  
+   **false:** alert() returns immediately without waiting for user to press a key
 ##### admit_linebreak_inside_of_a_word
    This option affects only long text lines which are longer than maximal terminal window width (more than 80 characters)  
-   *false:* insert additional newlines in safe places to avoid words get splitted by linebreaks  
-   *true:* display long text lines as-is, without inserting additional newlines
-
+   **false:** insert additional newlines in safe places to avoid words get splitted by linebreaks  
+   **true:** display long text lines as-is, without inserting additional newlines
+---
 ### Configurations
 Configuration is a set of parameters which can be modified in order to control the behavior of `alert()`:  
 Configurable parameters are:
@@ -232,6 +233,7 @@ How to create function that accepts Windows ANSI strings instead of UTF-8 string
 local alert = require("alert")(nil, {use_windows_native_encoding = true})
 alert("This is win1252 string.\nEuro sign: \128")
 ```
+---
 ### OS versions
 * Windows:
  XP and higher versions are supported
@@ -243,10 +245,10 @@ alert("This is win1252 string.\nEuro sign: \128")
  should work on all desktop Linux distributions
 * Other *nices:
  not tested, but I hope it should work (bugreports are welcome)
-
+---
 ### Installation
    Just copy "alert.lua" to folder where Lua modules are stored on your machine.
-
+---
 ### Known problems:
 * Symbol width on Windows with Multi-Byte-Character-Set locales (such as CJK).
    Currently, `alert()` is unable to distinguish between full-width and half-width characters in CMD.EXE console output.
@@ -254,14 +256,14 @@ alert("This is win1252 string.\nEuro sign: \128")
    Bugreports with screenshots are welcome.
    Is there exist a rule (applicable to all existing MBCS Windows encodings) to determine width of symbol on CMD.EXE screen?
    Can someone suggest a way to solve this problem?
-
+---
 ### Feedback
 Please send any ideas, improvements and contructive criticism to egor.skriptunoff(at)gmail.com
 
 Feedback is especially desirable from:
 * People that are using *nix distributions which are not in widespread use;
 * CJK Windows users.
-
+---
 ### FAQ
 **Q:**  
    Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
