@@ -41,8 +41,7 @@ alert{text = "This window doesn't block Lua script execution",
 alert{colors = "/blue"}  -- this means "I want blue background and I don't care about foreground color"
 
 -- Any printable characters are allowed in the text, shell metacharacters don't have magic:
-alert(
-   "\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n"..[[
+alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n"..[[
  !"#$%&'()*+,-./0123456789:;<=>?
 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
 `abcdefghijklmnopqrstuvwxyz{|}~
