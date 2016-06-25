@@ -5,10 +5,10 @@ The functionality is similar to JavaScript `alert()` function.
 `alert()` creates a window with specified text and waits until user closed the window (by pressing any key).  
 It is pure Lua module, compatible with Lua 5.3, 5.2, 5.1, and LuaJIT.  
 It does not depend on any C library, all it needs is `os.execute()` and `io.popen()`.  
-It works on Linux, Mac OS X, Windows and Cygwin.  
+It works on Linux, Mac OS X, Windows, Cygwin and Wine.  
 
 `alert()` performs its task by invoking terminal emulator and executing shell command `echo YourMessage` inside it:
-* "CMD.EXE" (Windows Command Prompt) is used on Windows and Cygwin;
+* "CMD.EXE" (Windows Command Prompt) is used on Windows, Cygwin and Wine;
 * "Terminal.app" is used on Mac OS X;
 * any of 17 supported terminal emulators (if found to be installed on your system) is used on Linux.
 
@@ -38,7 +38,7 @@ alert{text = "This window doesn't block Lua script execution",
       wait = false}
 
 -- Create empty blue window:
-alert{colors = "/blue"}  -- this means "I want blue background and I don't care about foreground color"
+alert{colors = "/magenta"}  -- this means "I want magenta background and I don't care about foreground color"
 
 -- Any printable characters are allowed in the text, shell metacharacters don't have magic:
 alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n"..[[
@@ -46,7 +46,7 @@ alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n
 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
 `abcdefghijklmnopqrstuvwxyz{|}~
 UTF-8: Русский Ελληνικά 中文 ½°©§№
-]], "$PATH %PATH%", "cyan/navy")
+]], "$PATH %PATH% Рус Ελλ 中文 ½°©§№", "white/navy")
 ```
 ---
 ### List of supported terminal emulators
@@ -77,7 +77,7 @@ so `alert()` should work on any desktop Linux.
 
 ---
 ### OS-specific behavior
-* **Windows:**  
+* **Windows, Wine:**  
    Windows Command Prompt (CMD.EXE) is used to create a console window and display a message inside it.
 
 * **Linux:**  
@@ -100,13 +100,13 @@ so `alert()` should work on any desktop Linux.
 
 ---
 ### Text Encoding
-Arguments `text` and `title` are expected to be UTF-8 strings on all platforms, including Windows.  
-The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
+Arguments `text` and `title` are expected to be UTF-8 strings on all platforms, including Windows and Wine.  
+The following variants of newlines are valid on all platforms: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
 
 ##### A note for CYGWIN users:
 * When Cygwin/X-based terminal emulator is used as alert box:
   * UTF-8 is fully supported
-  * Sometimes alert box is created as NOT frontmost window and/or not focused.
+  * Sometimes alert box is created as NOT frontmost window and NOT focused.
 * When CMD.EXE is used as alert box:
   * UTF-8 support is limited to symbols from current Windows locale:
     * characters from Windows OEM codepage (OEM=cp850 for Latin-1 locale) are displayed correctly,
@@ -123,6 +123,11 @@ The following variants of newlines are valid: `"\n"`, `"\r\n"`, `"\r"`, `"\0"`.
 * To work with Windows ANSI strings instead of UTF-8 strings,  
   set `use_windows_native_encoding` configurable parameter to `true`  
   (see "Working with configurations. Example #4" below)
+
+##### A note for Wine users:
+* "A note for WINDOWS users" is applicable to Wine users too.
+* Sometimes alert box is created as NOT frontmost window and NOT focused.
+* Alert box is always constantly big (80x25) because Wine lacks `C:\WINDOWS\system32\mode.com`.
 
 ---
 ### Function signature
@@ -189,7 +194,7 @@ alert_1(("Test,"):rep(20))
 local alert_2 = alert_1(nil, {
    -- default values for arguments:
    default_arg_title = "My default title",
-   default_arg_colors = "lime/navy",
+   default_arg_colors = "white/olive",
    -- other configurable parameters:
    max_width = 128,
    terminal = "urxvt"
@@ -197,13 +202,13 @@ local alert_2 = alert_1(nil, {
 
 -- Create alert box using alert_2()
 alert_2(("Test,"):rep(20))
--- Window created: title = "My default title", colors = "lime/navy", using urxvt, geometry up to 128x25
+-- Window created: title = "My default title", colors = "white/olive", using urxvt, geometry up to 128x25
 
 -- Override some more configurable parameters and create yet another function instance:
 local msg_ctr = 0
 local alert_3 = alert_2(nil, {
    -- default values for text, title and colors could be constant strings or functions returning a string:
-   default_arg_colors = "magenta/green",
+   default_arg_colors = "black/aqua",
    default_arg_title = function()
                           msg_ctr = msg_ctr + 1
                           return "Message #"..msg_ctr
@@ -214,7 +219,7 @@ local alert_3 = alert_2(nil, {
 
 -- Create alert box using alert_3()
 alert_3(("Test,"):rep(20))
--- Window created: title = "Message #1", colors = "magenta/green", using xterm, geometry up to 128x25
+-- Window created: title = "Message #1", colors = "black/aqua", using xterm, geometry up to 128x25
 ```
 ##### Working with configurations. Example #2:
 How to create two functions to use different terminal emulators in Linux:  
@@ -237,19 +242,21 @@ alert_blue ("This window is blue")
 alert_blue ("This window is yellow", nil, "/yellow")
 ```
 ##### Working with configurations. Example #4:
-How to create function that accepts Windows ANSI strings instead of UTF-8 strings (only for Windows):
+How to create function that accepts Windows ANSI strings instead of UTF-8 strings (only for Windows and Wine):
 ```lua
 local alert = require("alert")(nil, {use_windows_native_encoding = true})
-alert('This is win1252 string.\n"One half" symbol: \189')
+alert('This is win1252 string.\n"One half" symbol: \189', "\189 in the title")
 ```
 ---
 ### OS versions
 * **Windows:**  
  XP and higher versions are supported
 * **MacOSX:**  
- tested on Mountain Lion and higher versions
+ tested on Mountain Lion and El Capitan
 * **Cygwin:**  
  tested on 2.5.1
+* **Wine**  
+ tested on 1.6.2
 * **Linux:**  
  should work on all desktop Linux distributions
 * **Other *nices:**  
@@ -278,7 +285,7 @@ Feedback is especially desirable from:
 
 ---
 ### FAQ
-* **Q:** Why module version numbers are so plain: version 1, version 2,... instead of traditional x.y.z version notation?  
+* **Q:** Why module version numbers are so plain: version 1, version 2,... instead of traditional **x.y.z** version notation?  
 * **A:** I want to keep things simple.  
  This module is intended to ALWAYS keep backward compatibility: if your program works with `alert` version **N**, it will also work with `alert` version **N+1**.  
  So, one level of numbers is enough to describe dependency.

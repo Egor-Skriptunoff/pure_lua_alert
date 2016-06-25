@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 -- MODULE: alert
 
--- VERSION: 1 (2016-06-21)
+-- VERSION: 2 (2016-06-25)
 
 -- AUTHOR: Egor (egor.skriptunoff(at)gmail.com)
 -- This module is released under the MIT License (the same license as Lua itself).
@@ -22,10 +22,11 @@
 -- REQUIREMENTS:
 --   Lua 5.1, Lua 5.2, Lua 5.3 or LuaJIT.
 --   Lua standard library functions "os.execute()" and "io.popen()" must be non-sandboxed.
---   Supported OS: probably all X11-based *nices, Windows (XP and higher), MacOSX, Cygwin.
+--   Supported OS: probably all X11-based *nices, Windows (XP and higher), MacOSX, Cygwin, Wine.
 --
 -- CHANGELOG:
 --  version     date      description
+--     2     2016-06-25   Wine support added
 --     1     2016-06-21   First release
 -----------------------------------------------------------------------------
 
@@ -80,7 +81,7 @@ local initial_config = {
    -- false: when XQuartz is running, *nix terminal emulators are being tried first, failed that Terminal.app is used.
    -- true:  when XQuartz is running, Terminal.app is always used.
 
-   -- This parameter is applicable only for Windows.
+   -- This parameter is applicable only for Windows and Wine.
    use_windows_native_encoding = false,                   -- [boolean]
    -- false: "text" and "title" arguments are handled as UTF-8 strings whenever possible
    --        (if they both are correct UTF-8 strings), otherwise native Windows ANSI codepage is assumed for both of them
@@ -88,7 +89,7 @@ local initial_config = {
    -- Please note that Windows ANSI codepage depends on current locale settings, it can be modified by user in
    -- "Windows Control Panel" -> "Regional and Language" -> "Language for non-Unicode Programs"
 
-   -- This parameter is applicable for all systems except Windows.
+   -- This parameter is applicable for all systems except Windows and Wine.
    terminal = NIL,                                     -- [any key from "terminals" table]
    -- This parameter selects preferred terminal emulator, which will be given highest priority during auto-detection
 
@@ -111,7 +112,7 @@ local terminals = {
    -- Next two fields are for terminal emulators:
    --    option_command             required  string    an option to provide a shell command to execute (for example, "-e")
    --    command_requires_quoting   required  boolean   should shell command be quoted in the command line?
-   -- Next two fields are for applications that are not terminal emulators, such as "zenity":
+   -- Next two fields are for native dialogs, such as "zenity":
    --    option_text                required  string    a command line option to pass user text to be displayed
    --    text_preprocessor          optional  function  text preprocessing function to implement escaping, etc.
 
@@ -264,8 +265,10 @@ local terminals = {
       command_requires_quoting = false,     -- if true then == option_command..[[ "command arguments"]]
       options_misc = "--nofork --hide-tabbar --hide-menubar -p ScrollBarPosition=2",  -- other useful options
    },
+
+   -- native dialogs (they don't have ability to set background color, so colors are not used)
    ["zenity"] = { -- user should press Enter or Spacebar, or "OK" button with mouse (instead of pressing any key)
-      priority = -300,
+      priority = -1000,
       -- option_geometry =                  -- zenity does not allow setting number of rows and columns for monospaced font
       option_title = "--title",             -- actual usage == option_title..[[ 'My Title']]
       option_colors = "",                   -- zenity can't set its window color, so we don't use colors at all
@@ -386,8 +389,8 @@ local function geometry_beautifier(
       local max_height = math.max( 3, cfg.max_height)
       if exact_geometry_is_unknown then
          -- we have no control over width and height of the terminal window, but we assume
-         -- that terminal window has exactly 80 columns and more than 15 rows (this is very probable)
-         max_width, max_height = 80, 15
+         -- that terminal window has exactly 80 columns and at least 20 rows (this is very probable)
+         max_width, max_height = 80, 20
       end
       local pos, left_cut, right_cut = 0, math.huge, 0
       local line_no, top_cut, bottom_cut = 0, math.huge, 0
@@ -498,109 +501,55 @@ end  -- end of function "geometry_beautifier()"
 -- the must-have system functions for this module:
 local os_execute, io_popen, os_getenv = os.execute, io.popen, os.getenv
 
--- the following functions are required only under Windows (only when UTF-8 strings are converted to native CJK encodings)
+-- the following functions are required only under Wine and CJK Windows
 local io_open, os_remove = io.open, os.remove -- they are needed to create and delete temporary file
 
-local test_ok, env_var_windows_os, system_name, xinit_proc_cnt, wait_key_method_code, utf8tosbcs, tempfilespec
+local test_echo, env_var_os, windows_ver, system_name, xinit_proc_cnt, wait_key_method_code
+local tempfolder, tempfileid, sbcs, mbcs, ansi_to_utf16, utf16_to_ansi, utf16_to_oem, utf8tosbcs, tempfilespec
 
-local function create_function_alert(cfg)   -- function factory
+local function create_function_alert(cfg)   -- function constructor
 
-   -- command "echo Test" should work on any OS
-   test_ok = test_ok or os_execute and io_popen and io_popen"echo Test":read"*a":match"^Test"
-   if not test_ok then
+   if not (os_execute and io_popen) then
+      error('"alert" requires "os.execute" and "io.popen"', 3)
+   end
+   if not test_echo then
+      local pipe = io_popen"echo Test"  -- command "echo Test" should work on any OS
+      test_echo = pipe:read"*a"
+      pipe:close()
+   end
+   if not test_echo:match"^Test" then
       error('"alert" requires non-sandboxed "os.execute" and "io.popen"', 3)
    end
 
-   env_var_windows_os = env_var_windows_os or os_getenv"oS" or ""
+   env_var_os = env_var_os or os_getenv"oS" or ""
    -- "oS" is not a typo.  It prevents Cygwin from being incorrectly identified as Windows.
    -- Cygwin inherits Windows environment variables, but treats them as if they were case-sensitive.
 
-   if env_var_windows_os:find"^Windows" then
+   if env_var_os:find"^Windows" then
 
       ----------------------------------------------------------------------------------------------------
-      -- Invocation of CMD.EXE on WINDOWS
+      -- Windows or Wine
       ----------------------------------------------------------------------------------------------------
-      local function to_native(str)
-         if not (utf8tosbcs or tempfilespec) then
-            local locale_dependent_chars = {}
-            for code = 128, 255 do
-               table.insert(locale_dependent_chars, string.char(code))
-            end
-            local pipe = assert(io_popen("cmd /u/d/c echo("..table.concat(locale_dependent_chars).."$", "rb"))
-            local converted = pipe:read"*a"
+
+      local function getwindowstempfilespec()
+         if not tempfolder then
+            tempfolder = assert(os_getenv"TMP" or os_getenv"TEMP", "%TMP% environment variable is not set")
+            tempfileid = os.time() * 3456793  -- tempfileid is an integer number in the range 0..(2^53)-1
+            local pipe = assert(io_popen"echo %random%%time%%date%")
+            -- We want to make temporary file name different for every run of the program
+            -- %random% is 15-bit random integer generated by OS
+            -- %time% is current time with 0.01 seconds precision
+            -- tostring{} contains table's address inside the heap, heap location is changed on every run due to ASLR
+            ;(tostring{}..pipe:read"*a"):gsub("(.)(.)",
+               function(a,b)
+                  tempfileid = tempfileid % 68719476736 * 126611
+                     + math.floor(tempfileid/68719476736) * 505231
+                     + a:byte() * 3083 + b:byte()
+               end)
             pipe:close()
-            if converted:sub(257, 258) == "$\0" then
-               -- Windows native codepage is Single-Byte Character Set
-               utf8tosbcs = {}  -- create table for fast conversion of UTF-8 characters to Single-Byte Character Set
-               for code = 128, 255 do
-                  local low, high = converted:byte(2*code - 255, 2*code - 254)
-                  local unicode = high * 256 + low
-                  if unicode > 0x7FF then    -- [1110 xxxx] [10xx xxxx] [10xx xxxx]
-                     utf8tosbcs[string.char(
-                        0xE0 + math.floor(unicode/4096),
-                        0x80 + math.floor(unicode/64) % 64,
-                        0x80 + unicode % 64)] = string.char(code)
-                  elseif unicode > 0x7F then -- [110x xxxx] [10xx xxxx]
-                     utf8tosbcs[string.char(
-                        0xC0 + math.floor(unicode/64),
-                        0x80 + unicode % 64)] = string.char(code)
-                  end
-               end
-            else
-               -- Windows native codepage is Multi-Byte Character Set
-               pipe = assert(io_popen"echo(%random%%time%%date%")
-               local hash = os.time() * 3456793  -- hash is an integer number in the range 0..(2^53)-1
-               -- We want to make temporary file name different for every run of the program
-               -- %random% is 15-bit random integer generated by OS
-               -- %time% is current time with 0.01 seconds precision
-               -- tostring{} contains table's address inside the heap, heap location is changed on every run due to ASLR
-               ;(tostring{}..pipe:read"*a"):gsub("(.)(.)",
-                  function(a,b)
-                     hash = hash % 68719476736 * 126611 + math.floor(hash/68719476736) * 505231 + a:byte() * 3083 + b:byte()
-                  end)
-               tempfilespec =  -- temporary file is used to convert unicode string to Multi-Byte Character Set
-                  assert(os_getenv"TMP" or os_getenv"TEMP", "%TMP% environment variable is not set")
-                  ..("\\MsgBx_%.f.tmp"):format(hash)
-               pipe:close()
-            end
          end
-         if utf8tosbcs then
-            -- UTF-8 to SBCS
-            return (str:gsub(utf8_char_pattern, function(c) return #c > 1 and (utf8tosbcs[c] or "?") end))
-         else
-            -- UTF-8 to MBCS
-            local file = assert(io_open(tempfilespec, "wb"))    -- create temporary file
-            file:write("\255\254"..str:gsub(utf8_char_pattern,  -- convert UTF-8 to UTF-16LE with BOM
-               function(c)
-                  local c1, c2, c3, c4 = c:byte(1, 4)
-                  local unicode
-                  if c4 then      -- [1111 0xxx] [10xx xxxx] [10xx xxxx] [10xx xxxx]
-                     unicode = ((c1 % 8 * 64 + c2 % 64) * 64 + c3 % 64) * 64 + c4 % 64
-                  elseif c3 then  -- [1110 xxxx] [10xx xxxx] [10xx xxxx]
-                     unicode = (c1 % 16 * 64 + c2 % 64) * 64 + c3 % 64
-                  elseif c2 then  -- [110x xxxx] [10xx xxxx]
-                     unicode = c1 % 32 * 64 + c2 % 64
-                  else            -- [0xxx xxxx]
-                     unicode = c1
-                  end
-                  if unicode < 0x10000 then
-                     return string.char(unicode % 256, math.floor(unicode/256))
-                  else   -- make surrogate pair for unicode code points above 0xFFFF
-                     local unicode1 = 0xD800 + math.floor((unicode - 0x10000)/0x400) % 0x400
-                     local unicode2 = 0xDC00 + (unicode - 0x10000) % 0x400
-                     return string.char(unicode1 % 256, math.floor(unicode1/256),
-                                        unicode2 % 256, math.floor(unicode2/256))
-                  end
-               end))
-            file:close()
-            -- convert UTF-16LE to native multi-byte encoding
-            -- (this trick works only for multibyte Windows encodings, when ANSI codepage is the same as OEM codepage)
-            local pipe = assert(io_popen('type "'..tempfilespec..'"', "rb"))
-            local converted = pipe:read"*a"
-            pipe:close()
-            assert(os_remove(tempfilespec))  -- delete temporary file
-            return converted
-         end
+         tempfileid = tempfileid + 1
+         return tempfolder..("\\alert_%.f.tmp"):format(tempfileid)
       end
 
       local function is_utf8(str)
@@ -618,40 +567,229 @@ local function create_function_alert(cfg)   -- function factory
          return true, is_ascii7
       end
 
-      return function (text, title, colors, wait, admit_linebreak_inside_of_a_word)
-         text, title = text or "", title or "Press any key"
-         if not cfg.use_windows_native_encoding then
-            local text_is_utf8,  text_is_ascii7  = is_utf8(text)
-            local title_is_utf8, title_is_ascii7 = is_utf8(title)
-            if text_is_utf8 and title_is_utf8 then
-               text  = text_is_ascii7  and text  or to_native(text)
-               title = title_is_ascii7 and title or to_native(title)
+      local function convert_char_utf8_to_utf16(c)
+         local c1, c2, c3, c4 = c:byte(1, 4)
+         local unicode
+         if c4 then      -- [1111 0xxx] [10xx xxxx] [10xx xxxx] [10xx xxxx]
+            unicode = ((c1 % 8 * 64 + c2 % 64) * 64 + c3 % 64) * 64 + c4 % 64
+         elseif c3 then  -- [1110 xxxx] [10xx xxxx] [10xx xxxx]
+            unicode = (c1 % 16 * 64 + c2 % 64) * 64 + c3 % 64
+         elseif c2 then  -- [110x xxxx] [10xx xxxx]
+            unicode = c1 % 32 * 64 + c2 % 64
+         else            -- [0xxx xxxx]
+            unicode = c1
+         end
+         if unicode < 0x10000 then
+            return string.char(unicode % 256, math.floor(unicode/256))
+         else   -- make surrogate pair for unicode code points above 0xFFFF
+            local unicode1 = 0xD800 + math.floor((unicode - 0x10000)/0x400) % 0x400
+            local unicode2 = 0xDC00 + (unicode - 0x10000) % 0x400
+            return string.char(unicode1 % 256, math.floor(unicode1/256),
+                               unicode2 % 256, math.floor(unicode2/256))
+         end
+      end
+
+      local function convert_string_utf8_to_utf16(str, with_bom)
+         return (with_bom and "\255\254" or "")..str:gsub(utf8_char_pattern, convert_char_utf8_to_utf16)
+      end
+
+      if not windows_ver then
+         local pipe = io_popen"ver"
+         windows_ver = pipe:read"*a"
+         pipe:close()
+      end
+
+      if windows_ver:match"%w+" ~= "Wine" then
+
+         ----------------------------------------------------------------------------------------------------
+         -- Invocation of CMD.EXE on WINDOWS
+         ----------------------------------------------------------------------------------------------------
+
+         local function convert_string_utf8_to_oem(str, filename)
+            local file = assert(io_open(filename, "wb"))    -- create temporary file
+            -- convert UTF-8 to UTF-16LE with BOM
+            file:write(convert_string_utf8_to_utf16(str.."#", true))
+            file:close()
+            -- convert UTF-16LE to OEM
+            local pipe = io_popen('type "'..filename..'"', "rb")
+            local converted = assert(pipe:read"*a":match"^(.*)#")
+            pipe:close()
+            assert(os_remove(filename))                     -- delete temporary file
+            return converted
+         end
+
+         local function to_native(str)
+            if not (sbcs or mbcs) then
+               local locale_dependent_chars = {}
+               for code = 128, 255 do
+                  table.insert(locale_dependent_chars, string.char(code))
+               end
+               local pipe = io_popen("cmd /u/d/c echo("..table.concat(locale_dependent_chars).."$", "rb")
+               local converted = pipe:read"*a"
+               pipe:close()
+               if converted:sub(257, 258) == "$\0" then
+                  -- Windows native codepage is Single-Byte Character Set
+                  sbcs = true
+                  -- create table for fast conversion of UTF-8 characters to Single-Byte Character Set
+                  utf8tosbcs = {}
+                  for code = 128, 255 do
+                     local low, high = converted:byte(2*code - 255, 2*code - 254)
+                     local unicode = high * 256 + low
+                     if unicode > 0x7FF then    -- [1110 xxxx] [10xx xxxx] [10xx xxxx]
+                        utf8tosbcs[string.char(
+                           0xE0 + math.floor(unicode/4096),
+                           0x80 + math.floor(unicode/64) % 64,
+                           0x80 + unicode % 64)] = string.char(code)
+                     elseif unicode > 0x7F then -- [110x xxxx] [10xx xxxx]
+                        utf8tosbcs[string.char(
+                           0xC0 + math.floor(unicode/64),
+                           0x80 + unicode % 64)] = string.char(code)
+                     end
+                  end
+               else
+                  -- Windows native codepage is Multi-Byte Character Set
+                  mbcs = true
+                  tempfilespec = getwindowstempfilespec()  -- temporary file for converting unicode strings to MBCS
+               end
+            end
+            if sbcs then
+               -- UTF-8 to SBCS
+               return (str:gsub(utf8_char_pattern, function(c) return #c > 1 and (utf8tosbcs[c] or "?") end))
+            else
+               -- UTF-8 to MBCS
+               -- (this trick works only for multibyte Windows encodings, when ANSI codepage is the same as OEM codepage)
+               return convert_string_utf8_to_oem(str, tempfilespec)
             end
          end
-         local text, width, height =
-            geometry_beautifier(cfg, text, one_byte_char_pattern, true, admit_linebreak_inside_of_a_word)
+
+         return function (text, title, colors, wait, admit_linebreak_inside_of_a_word)
+            text, title = text or "", title or "Press any key"
+            if not cfg.use_windows_native_encoding then
+               local text_is_utf8,  text_is_ascii7  = is_utf8(text)
+               local title_is_utf8, title_is_ascii7 = is_utf8(title)
+               if text_is_utf8 and title_is_utf8 then
+                  text  = text_is_ascii7  and text  or to_native(text)
+                  title = title_is_ascii7 and title or to_native(title)
+               end
+            end
+            local text, width, height =
+               geometry_beautifier(cfg, text, one_byte_char_pattern, true, admit_linebreak_inside_of_a_word)
+            local fg, bg = get_color_values(colors)
+            local lines = {}
+            local function add_line(prefix, line)
+               table.insert(lines, prefix..line:gsub(".", {
+                  ["("]="^(", [")"]="^)", ["&"]="^&",  ["|"]="^|", ["^"]="^^",
+                  [">"]="^>", ["<"]="^<", ["%"]="%^<", ['"']="%^>"
+               }))
+            end
+            title = title:sub(1,200):match"%C+" or ""
+            -- the following check is needed to avoid invocation of "title /?"
+            if title:find'["%%]' and not title:find"/[%s,;=]*%?" then
+               add_line("title ", title)
+               title = ""
+            end
+            for line in (text.."\n"):gmatch"(.-)\n" do
+               add_line("echo(", line)
+            end
+            os_execute(
+               '"start "'..title:gsub(".", {['"']="'", ["%"]=" % "})..'" '..(wait and "/wait " or "")..'cmd /d/c"'
+               ..(width and "mode "..width..","..height.."&" or "")
+               ..(fg and "color "..bg[3]..fg[3].."&" or "")
+               ..'for /f "tokens=1-3delims=_" %^< in ("%_"_"")do @('..table.concat(lines, "&")..')&pause>nul:""'
+            )
+         end
+
+      end
+
+      ----------------------------------------------------------------------------------------------------
+      -- Invocation of CMD.EXE on Wine
+      ----------------------------------------------------------------------------------------------------
+
+      local function initialize_convertor(filename)
+         local locale_dependent_chars = {}
+         for code = 128, 255 do
+            table.insert(locale_dependent_chars, string.char(code))
+         end
+         locale_dependent_chars = table.concat(locale_dependent_chars)
+         local pipe = io_popen("cmd /u/d/c echo "..locale_dependent_chars.."$", "rb")
+         local converted_ansi = pipe:read"*a"
+         pipe:close()
+         if converted_ansi:sub(257, 258) == "$\0" then
+            -- Wine codepage is Single-Byte Character Set
+            sbcs = true
+            -- create tables for fast conversion UTF-16 to/from Single-Byte Character Set
+            ansi_to_utf16 = {}          --  ansi_to_utf16[ansi char] = utf-16 char
+            utf16_to_ansi = {}          --  utf16_to_ansi[utf-16 char] = ansi char
+            utf16_to_oem = {}           --  utf16_to_oem[utf-16 char] = oem char
+            local file = assert(io_open(filename, "wb"))
+            file:write(locale_dependent_chars)
+            file:close()
+            pipe = io_popen("cmd /u/d/c type "..filename, "rb")
+            local converted_oem = pipe:read"*a"
+            pipe:close()
+            for code = 0, 255 do
+               local c = string.char(code)
+               local w_ansi = code < 128 and c.."\0" or converted_ansi:sub(2*code - 255, 2*code - 254)
+               if code < 128 or w_ansi:byte(2) * 256 + w_ansi:byte() > 0x7F then
+                  ansi_to_utf16[c] = w_ansi
+                  utf16_to_ansi[w_ansi] = c
+               end
+               local w_oem = code < 128 and w_ansi or converted_oem:sub(2*code - 255, 2*code - 254)
+               if code < 128 or w_oem:byte(2) * 256 + w_oem:byte() > 0x7F then
+                  utf16_to_oem[w_oem] = c
+               end
+            end
+         else
+            -- Wine codepage is Multi-Byte Character Set
+            mbcs = true
+         end
+      end
+
+      return function (text, title, colors, wait, admit_linebreak_inside_of_a_word)
+         text, title = text or "", (title or "Press any key"):sub(1,200):match"%C+" or ""
+         local text_is_utf8,  text_is_ascii7  = is_utf8(text)
+         local title_is_utf8, title_is_ascii7 = is_utf8(title)
+         local char_pattern =
+            (not cfg.use_windows_native_encoding and text_is_utf8 and title_is_utf8)
+            and utf8_char_pattern
+            or one_byte_char_pattern
+         local text = geometry_beautifier(cfg, text, char_pattern, true, admit_linebreak_inside_of_a_word, true)
          local fg, bg = get_color_values(colors)
-         local lines = {}
-         local function add_line(prefix, line)
-            table.insert(lines, prefix..line:gsub(".", {
-               ["("]="^(", [")"]="^)", ["&"]="^&",  ["|"]="^|", ["^"]="^^",
-               [">"]="^>", ["<"]="^<", ["%"]="%^<", ['"']="%^>"
-            }))
+         local tempfilename = getwindowstempfilespec()       -- temporary file for saving text
+         -- convert title to ANSI codepage
+         if not title_is_ascii7 and char_pattern == utf8_char_pattern then
+            if not (sbcs or mbcs) then
+               initialize_convertor(tempfilename)
+            end
+            if sbcs then
+               title = convert_string_utf8_to_utf16(title)
+                  :gsub("..", function(w) return utf16_to_ansi[w] or "?" end)
+            end
          end
-         title = title:sub(1,200):match"%C+" or ""
-         -- the following check is needed to avoid invocation of "title /?"
-         if title:find'["%%]' and not title:find"/[%s,;=]*%?" then
-            add_line("title ", title)
-            title = ""
+         -- convert text to OEM codepage and save in temporary file
+         text = (text.."\n"):gsub("\n", "\r\n")
+         if not text_is_ascii7 then
+            if not (sbcs or mbcs) then
+               initialize_convertor(tempfilename)
+            end
+            if sbcs then
+               if char_pattern == utf8_char_pattern then
+                  text = convert_string_utf8_to_utf16(text)
+               else
+                  text = text:gsub(".", ansi_to_utf16)
+               end
+               text = text:gsub("..", function(w) return utf16_to_oem[w] or "?" end)
+            end
          end
-         for line in (text.."\n"):gmatch"(.-)\n" do
-            add_line("echo(", line)
-         end
+         local file = assert(io_open(tempfilename, "wb"))
+         file:write(text)
+         file:close()
          os_execute(
-            '"start "'..title:gsub('"', "'")..'" '..(wait and "/wait " or "")..'cmd /d/c"'
-            ..(width and "mode "..width..","..height.."&" or "")
+            "start "..(wait and "/wait " or "")..'cmd /d/c "'
             ..(fg and "color "..bg[3]..fg[3].."&" or "")
-            ..'for /f "tokens=1-3delims=_" %^< in ("%_"_"")do @('..table.concat(lines, "&")..')&pause>nul:""'
+            .."title "..title:gsub("/%?", "/ ?")  -- to avoid invocation of "title /?"
+               :gsub(".", {["&"]="^&", ["|"]="^|", ["^"]="^^", [">"]="^>", ["<"]="^<", ["%"]=" % ", ['"']="'"})
+            .."&type "..tempfilename.."&del "..tempfilename..' 2>nul:&pause>nul:"'
          )
       end
 
@@ -660,18 +798,27 @@ local function create_function_alert(cfg)   -- function factory
    ----------------------------------------------------------------------------------------------------
    -- *NIX
    ----------------------------------------------------------------------------------------------------
+
    local function q(text)   -- quoting under *nix shells
       return "'"..text:gsub("'","'\\''").."'"
    end
 
-   system_name = system_name or io_popen"uname":read"*a":match"%C+"
+   if not system_name then
+      local pipe = io_popen"uname"
+      system_name = pipe:read"*a":match"%C+"
+      pipe:close()
+   end
    local is_macosx = system_name == "Darwin"
    local is_cygwin = system_name:find"^CYGWIN" or system_name:find"^MINGW" or system_name:find"^MSYS"
    local xless_system =
       is_macosx and cfg.always_use_terminal_app_under_macosx
       or is_cygwin and cfg.always_use_cmd_exe_under_cygwin
    if not xless_system and (is_macosx or is_cygwin) then
-      xinit_proc_cnt = xinit_proc_cnt or io_popen"(ps ax|grep /bin/xinit|grep -c -v grep)2>/dev/null":read"*n" or 0
+      if not xinit_proc_cnt then
+         local pipe = io_popen"(ps ax|grep /bin/xinit|grep -c -v grep)2>/dev/null"
+         xinit_proc_cnt = pipe:read"*n" or 0
+         pipe:close()
+      end
       xless_system = xinit_proc_cnt == 0
    end
 
@@ -680,6 +827,7 @@ local function create_function_alert(cfg)   -- function factory
       ----------------------------------------------------------------------------------------------------
       -- Auto-detection of terminal emulator on *nix
       ----------------------------------------------------------------------------------------------------
+
       local function get_terminal_priority(terminal)
          return terminal == cfg.terminal and math.huge or terminals[terminal].priority or -math.huge
       end
@@ -698,7 +846,10 @@ local function create_function_alert(cfg)   -- function factory
          command = "command -v "..terminal.."&&exit "..k+delta.."||"..command
       end
       local function run_quietly_and_get_exit_code(shell_command)
-         return io_popen("("..shell_command..")>/dev/null 2>&1;echo $?"):read"*n" or -1
+         local pipe = io_popen("("..shell_command..")>/dev/null 2>&1;echo $?")
+         local exit_code = pipe:read"*n" or -1
+         pipe:close()
+         return exit_code
       end
       local terminal = terminal_names[run_quietly_and_get_exit_code(command) - delta]
 

@@ -24,7 +24,7 @@ alert{text = "This window doesn't block Lua script execution",
       wait = false}
 
 -- Create empty blue window:
-alert{colors = "/blue"}  -- this means "I want blue background and I don't care about foreground color"
+alert{colors = "/magenta"}  -- this means "I want magenta background and I don't care about foreground color"
 
 -- Any printable characters are allowed in the text, shell metacharacters don't have magic:
 alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n"..[[
@@ -32,7 +32,7 @@ alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n
 @ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
 `abcdefghijklmnopqrstuvwxyz{|}~
 UTF-8: Русский Ελληνικά 中文 ½°©§№
-]], "$PATH %PATH%", "cyan/navy")
+]], "$PATH %PATH% Рус Ελλ 中文 ½°©§№", "white/navy")
 
 -------------------------------------------------------
 -- Working with configurations. Example #1:
@@ -48,7 +48,7 @@ alert_1(("Test,"):rep(20))
 local alert_2 = alert_1(nil, {
    -- default values for arguments:
    default_arg_title = "My default title",
-   default_arg_colors = "lime/navy",
+   default_arg_colors = "white/olive",
    -- other configurable parameters:
    max_width = 128,
    terminal = "urxvt"
@@ -56,13 +56,13 @@ local alert_2 = alert_1(nil, {
 
 -- Create alert box using alert_2()
 alert_2(("Test,"):rep(20))
--- Window created: title = "My default title", colors = "lime/navy", using urxvt, geometry up to 128x25
+-- Window created: title = "My default title", colors = "white/olive", using urxvt, geometry up to 128x25
 
 -- Override some more configurable parameters and create yet another function instance:
 local msg_ctr = 0
 local alert_3 = alert_2(nil, {
    -- default values for text, title and colors could be constant strings or functions returning a string:
-   default_arg_colors = "magenta/green",
+   default_arg_colors = "black/aqua",
    default_arg_title = function()
                           msg_ctr = msg_ctr + 1
                           return "Message #"..msg_ctr
@@ -73,7 +73,7 @@ local alert_3 = alert_2(nil, {
 
 -- Create alert box using alert_3()
 alert_3(("Test,"):rep(20))
--- Window created: title = "Message #1", colors = "magenta/green", using xterm, geometry up to 128x25
+-- Window created: title = "Message #1", colors = "black/aqua", using xterm, geometry up to 128x25
 
 -------------------------------------------------------
 -- Working with configurations. Example #2:
@@ -99,5 +99,5 @@ alert_blue ("This window is yellow", nil, "/yellow")
 -- Working with configurations. Example #4:
 -- How to create function that accepts Windows ANSI strings instead of UTF-8 strings (only for Windows):
 local alert = require("alert")(nil, {use_windows_native_encoding = true})
-alert('This is win1252 string.\n"One half" symbol: \189')
+alert('This is win1252 string.\n"One half" symbol: \189', "\189 in the title")
 
