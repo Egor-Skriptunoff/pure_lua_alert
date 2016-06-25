@@ -27,12 +27,12 @@ alert{text = "This window doesn't block Lua script execution",
 alert{colors = "/magenta"}  -- this means "I want magenta background and I don't care about foreground color"
 
 -- Any printable characters are allowed in the text, shell metacharacters don't have magic:
-alert("\tLook ma, environment variables\n\tare not expanded:\n\t$PATH %PATH%\n\n"..[[
+alert("\tLook ma, environment variables are not expanded:\n\t$PATH %PATH%\n\n"..[[
  !"#$%&'()*+,-./0123456789:;<=>?
-@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_
-`abcdefghijklmnopqrstuvwxyz{|}~
+@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+
 UTF-8: Русский Ελληνικά 中文 ½°©§№
-]], "$PATH %PATH% Рус Ελλ 中文 ½°©§№", "white/navy")
+]], [[$PATH %PATH% Рус Ελλ 中文 ½°©§№ !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]], "white/navy")
 
 -------------------------------------------------------
 -- Working with configurations. Example #1:
