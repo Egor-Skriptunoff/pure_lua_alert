@@ -375,7 +375,7 @@ local function geometry_beautifier(
    char_pattern,             --  Lua pattern for matching one symbol in the text
    early_line_overflow,      --  true: cursor jumps to next line when previous line has been filled but not yet overflowed
    admit_linebreak_inside_of_a_word,  --  true: disable inserting additional LF in the safe locations of the text
-   exact_geometry_is_unknown --  true: we have no control over width and height of the terminal window
+   exact_geometry_is_unknown --  true (or number): we have no control over width and height of the terminal window
 )  -- Three values returned:
    --    text (all newlines CR/CRLF/LF are converted to LF, last line is not terminated by LF)
    --    chosen terminal width  (nil if geometry beautifier is disabled)
@@ -389,8 +389,9 @@ local function geometry_beautifier(
       local max_height = math.max( 3, cfg.max_height)
       if exact_geometry_is_unknown then
          -- we have no control over width and height of the terminal window, but we assume
-         -- that terminal window has exactly 80 columns and at least 20 rows (this is very probable)
-         max_width, max_height = 80, 20
+         -- that terminal window has exactly 80 columns and at least 23 rows (this is very probable)
+         max_width  = 80
+         max_height = type(exact_geometry_is_unknown) == "number" and exact_geometry_is_unknown or 23
       end
       local pos, left_cut, right_cut = 0, math.huge, 0
       local line_no, top_cut, bottom_cut = 0, math.huge, 0
@@ -756,7 +757,7 @@ local function create_function_alert(cfg)   -- function constructor
             (not cfg.use_windows_native_encoding and text_is_utf8 and title_is_utf8)
             and utf8_char_pattern
             or one_byte_char_pattern
-         local text = geometry_beautifier(cfg, text, char_pattern, true, admit_linebreak_inside_of_a_word, true)
+         local text = geometry_beautifier(cfg, text, char_pattern, true, admit_linebreak_inside_of_a_word, 25)
          local fg, bg = get_color_values(colors)
          local tempfilename = getwindowstempfilespec()       -- temporary file for saving text
          -- convert title to ANSI codepage
