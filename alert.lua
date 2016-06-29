@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 -- MODULE: alert
 
--- VERSION: 3 (2016-06-28)
+-- VERSION: 3 (2016-06-29)
 
 -- AUTHOR: Egor (egor.skriptunoff(at)gmail.com)
 -- This module is released under the MIT License (the same license as Lua itself).
@@ -26,7 +26,7 @@
 --
 -- CHANGELOG:
 --  version     date      description
---     3     2016-06-28   Wine detection code updated; now it works correctly with Wine for OSX
+--     3     2016-06-29   Wine detection code updated; now it works correctly with Wine for OSX
 --     2     2016-06-25   Wine support added
 --     1     2016-06-21   First release
 -----------------------------------------------------------------------------
@@ -513,7 +513,7 @@ local function get_output(command, format, binary_mode)
    return result
 end
 
-local test_echo, env_var_os, call_echo, system_name, xinit_proc_cnt, wait_key_method_code
+local test_echo, env_var_os, cmd_echo, system_name, xinit_proc_cnt, wait_key_method_code
 local tempfolder, tempfileid, sbcs, mbcs, ansi_to_utf16, utf16_to_ansi, utf16_to_oem, utf8_to_sbcs, tempfilespec
 local locale_dependent_chars
 local display_CLOSE_THIS_WINDOW_message = true
@@ -616,8 +616,9 @@ local function create_function_alert(cfg)   -- function constructor
          return (with_bom and "\255\254" or "")..str:gsub(utf8_char_pattern, convert_char_utf8_to_utf16)
       end
 
-      call_echo = call_echo or get_output"call echo ^^^^":match"%^+"
-      local is_wine = call_echo == "^"
+      -- Wine and Windows parse command line differently, we use it for Wine detection
+      cmd_echo = cmd_echo or get_output'cmd /d/c "echo "^^""'
+      local is_wine = cmd_echo:find"%^^"
 
       if not is_wine then
 
