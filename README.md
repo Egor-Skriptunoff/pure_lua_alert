@@ -3,7 +3,7 @@
 ### Description
 The functionality is similar to JavaScript `alert()` function.  
 `alert()` creates a window with specified text and waits until user closed the window (by pressing any key).  
-It is pure Lua module, compatible with Lua 5.3, 5.2, 5.1, and LuaJIT.  
+It is pure Lua module, compatible with Lua 5.1, 5.2, 5.3, 5.4 and LuaJIT.  
 It does not depend on any C library, all it needs is `os.execute()` and `io.popen()`.  
 It works on Linux, Mac OS X, Windows, Cygwin and Wine.  
 

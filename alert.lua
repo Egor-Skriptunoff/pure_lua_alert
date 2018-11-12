@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 -- MODULE: alert
 
--- VERSION: 3 (2016-06-29)
+-- VERSION: 4 (2018-11-12)
 
 -- AUTHOR: Egor (egor.skriptunoff(at)gmail.com)
 -- This module is released under the MIT License (the same license as Lua itself).
@@ -20,12 +20,14 @@
 --   See "example.lua" for more examples.
 --
 -- REQUIREMENTS:
---   Lua 5.1, Lua 5.2, Lua 5.3 or LuaJIT.
+--   Lua 5.1, Lua 5.2, Lua 5.3, Lua 5.4 or LuaJIT.
 --   Lua standard library functions "os.execute()" and "io.popen()" must be non-sandboxed.
 --   Supported OS: probably all X11-based *nices, Windows (XP and higher), MacOSX, Cygwin, Wine.
 --
 -- CHANGELOG:
 --  version     date      description
+--  -------  ----------   -----------
+--     4     2018-11-12   Quoted text under Linux is now a bit shorter
 --     3     2016-06-29   Wine detection code updated; now it works correctly with Wine for OSX
 --     2     2016-06-25   Wine support added
 --     1     2016-06-21   First release
@@ -805,7 +807,16 @@ local function create_function_alert(cfg)   -- function constructor
    ----------------------------------------------------------------------------------------------------
 
    local function q(text)   -- quoting under *nix shells
-      return "'"..text:gsub("'","'\\''").."'"
+      if text == "" then
+         text = '""'
+      elseif text:match"%W" then
+         local t = {}
+         for s in (text.."'"):gmatch"(.-)'" do
+            t[#t + 1] = s:match"%W" and "'"..s.."'" or s
+         end
+         text = table.concat(t, "\\'")
+      end
+      return text
    end
 
    system_name = system_name or get_output"uname":match"%C+"
